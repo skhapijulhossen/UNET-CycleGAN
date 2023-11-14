@@ -16,8 +16,8 @@ import torch.optim as optim
 import config
 from tqdm import tqdm
 from torchvision.utils import save_image
-from discriminator_model import Discriminator
-from generator_model import Generator
+from discriminator import Discriminator
+from generator import Generator
 
 
 def train_fn(
@@ -93,10 +93,11 @@ def train_fn(
         g_scaler.update()
 
         if idx % 200 == 0:
-            save_image(fake_horse * 0.5 + 0.5, f"saved_images/horse_{idx}.png")
-            save_image(fake_zebra * 0.5 + 0.5, f"saved_images/zebra_{idx}.png")
+            save_image(fake_horse * 0.5 + 0.5, f"work_examples/horse_{idx}.png")
+            save_image(fake_zebra * 0.5 + 0.5, f"work_examples/zebra_{idx}.png")
 
-        loop.set_postfix(H_real=H_reals / (idx + 1), H_fake=H_fakes / (idx + 1))
+        loop.set_postfix(H_real=H_reals / (idx + 1),
+                         H_fake=H_fakes / (idx + 1))
 
 
 def main():
@@ -151,8 +152,8 @@ def main():
         transform=config.transforms,
     )
     val_dataset = HorseZebraDataset(
-        root_horse="cyclegan_test/horse1",
-        root_zebra="cyclegan_test/zebra1",
+        root_horse=config.VAL_DIR + "/horses",
+        root_zebra=config.VAL_DIR + "/zebras",
         transform=config.transforms,
     )
     val_loader = DataLoader(
@@ -168,8 +169,8 @@ def main():
         num_workers=config.NUM_WORKERS,
         pin_memory=True,
     )
-    g_scaler = torch.cuda.amp.GradScaler()
-    d_scaler = torch.cuda.amp.GradScaler()
+    g_scaler = torch.cuda.amp.GradScaler(enabled=False)
+    d_scaler = torch.cuda.amp.GradScaler(enabled=False)
 
     for epoch in range(config.NUM_EPOCHS):
         train_fn(
@@ -189,8 +190,10 @@ def main():
         if config.SAVE_MODEL:
             save_checkpoint(gen_H, opt_gen, filename=config.CHECKPOINT_GEN_H)
             save_checkpoint(gen_Z, opt_gen, filename=config.CHECKPOINT_GEN_Z)
-            save_checkpoint(disc_H, opt_disc, filename=config.CHECKPOINT_CRITIC_H)
-            save_checkpoint(disc_Z, opt_disc, filename=config.CHECKPOINT_CRITIC_Z)
+            save_checkpoint(disc_H, opt_disc,
+                            filename=config.CHECKPOINT_CRITIC_H)
+            save_checkpoint(disc_Z, opt_disc,
+                            filename=config.CHECKPOINT_CRITIC_Z)
 
 
 if __name__ == "__main__":
