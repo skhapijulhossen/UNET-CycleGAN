@@ -21,7 +21,7 @@ from generator import Generator
 
 
 def train_fn(
-    disc_H, disc_Z, gen_Z, gen_H, loader, opt_disc, opt_gen, l1, mse, d_scaler, g_scaler
+    discriminatorX, discriminatorY, generatorX, generatorY, loader, opt_disc, opt_gen, l1, mse, d_scaler, g_scaler
 ):
     H_reals = 0
     H_fakes = 0
@@ -33,18 +33,18 @@ def train_fn(
 
         # Train Discriminators H and Z
         with torch.cuda.amp.autocast():
-            fake_horse = gen_H(zebra)
-            D_H_real = disc_H(horse)
-            D_H_fake = disc_H(fake_horse.detach())
+            fake_horse = generatorY(zebra)
+            D_H_real = discriminatorX(horse)
+            D_H_fake = discriminatorX(fake_horse.detach())
             H_reals += D_H_real.mean().item()
             H_fakes += D_H_fake.mean().item()
             D_H_real_loss = mse(D_H_real, torch.ones_like(D_H_real))
             D_H_fake_loss = mse(D_H_fake, torch.zeros_like(D_H_fake))
             D_H_loss = D_H_real_loss + D_H_fake_loss
 
-            fake_zebra = gen_Z(horse)
-            D_Z_real = disc_Z(zebra)
-            D_Z_fake = disc_Z(fake_zebra.detach())
+            fake_zebra = generatorX(horse)
+            D_Z_real = discriminatorY(zebra)
+            D_Z_fake = discriminatorY(fake_zebra.detach())
             D_Z_real_loss = mse(D_Z_real, torch.ones_like(D_Z_real))
             D_Z_fake_loss = mse(D_Z_fake, torch.zeros_like(D_Z_fake))
             D_Z_loss = D_Z_real_loss + D_Z_fake_loss
@@ -60,20 +60,20 @@ def train_fn(
         # Train Generators H and Z
         with torch.cuda.amp.autocast():
             # adversarial loss for both generators
-            D_H_fake = disc_H(fake_horse)
-            D_Z_fake = disc_Z(fake_zebra)
+            D_H_fake = discriminatorX(fake_horse)
+            D_Z_fake = discriminatorY(fake_zebra)
             loss_G_H = mse(D_H_fake, torch.ones_like(D_H_fake))
             loss_G_Z = mse(D_Z_fake, torch.ones_like(D_Z_fake))
 
             # cycle loss
-            cycle_zebra = gen_Z(fake_horse)
-            cycle_horse = gen_H(fake_zebra)
+            cycle_zebra = generatorX(fake_horse)
+            cycle_horse = generatorY(fake_zebra)
             cycle_zebra_loss = l1(zebra, cycle_zebra)
             cycle_horse_loss = l1(horse, cycle_horse)
 
             # identity loss (remove these for efficiency if you set lambda_identity=0)
-            identity_zebra = gen_Z(zebra)
-            identity_horse = gen_H(horse)
+            identity_zebra = generatorX(zebra)
+            identity_horse = generatorY(horse)
             identity_zebra_loss = l1(zebra, identity_zebra)
             identity_horse_loss = l1(horse, identity_horse)
 
@@ -101,18 +101,18 @@ def train_fn(
 
 
 def main():
-    disc_H = Discriminator(in_channels=3).to(config.DEVICE)
-    disc_Z = Discriminator(in_channels=3).to(config.DEVICE)
-    gen_Z = Generator(img_channels=3, num_residuals=9).to(config.DEVICE)
-    gen_H = Generator(img_channels=3, num_residuals=9).to(config.DEVICE)
+    discriminatorX = Discriminator(in_channels=3).to(config.DEVICE)
+    discriminatorY = Discriminator(in_channels=3).to(config.DEVICE)
+    generatorX = Generator(img_channels=3, num_residuals=9).to(config.DEVICE)
+    generatorY = Generator(img_channels=3, num_residuals=9).to(config.DEVICE)
     opt_disc = optim.Adam(
-        list(disc_H.parameters()) + list(disc_Z.parameters()),
+        list(discriminatorX.parameters()) + list(discriminatorY.parameters()),
         lr=config.LEARNING_RATE,
         betas=(0.5, 0.999),
     )
 
     opt_gen = optim.Adam(
-        list(gen_Z.parameters()) + list(gen_H.parameters()),
+        list(generatorX.parameters()) + list(generatorY.parameters()),
         lr=config.LEARNING_RATE,
         betas=(0.5, 0.999),
     )
@@ -122,26 +122,26 @@ def main():
 
     if config.LOAD_MODEL:
         load_checkpoint(
-            config.CHECKPOINT_GEN_H,
-            gen_H,
+            config.CHECKPOINT_generatorY,
+            generatorY,
             opt_gen,
             config.LEARNING_RATE,
         )
         load_checkpoint(
-            config.CHECKPOINT_GEN_Z,
-            gen_Z,
+            config.CHECKPOINT_generatorX,
+            generatorX,
             opt_gen,
             config.LEARNING_RATE,
         )
         load_checkpoint(
             config.CHECKPOINT_CRITIC_H,
-            disc_H,
+            discriminatorX,
             opt_disc,
             config.LEARNING_RATE,
         )
         load_checkpoint(
             config.CHECKPOINT_CRITIC_Z,
-            disc_Z,
+            discriminatorY,
             opt_disc,
             config.LEARNING_RATE,
         )
@@ -174,10 +174,10 @@ def main():
 
     for epoch in range(config.NUM_EPOCHS):
         train_fn(
-            disc_H,
-            disc_Z,
-            gen_Z,
-            gen_H,
+            discriminatorX,
+            discriminatorY,
+            generatorX,
+            generatorY,
             loader,
             opt_disc,
             opt_gen,
@@ -188,11 +188,11 @@ def main():
         )
 
         if config.SAVE_MODEL:
-            save_checkpoint(gen_H, opt_gen, filename=config.CHECKPOINT_GEN_H)
-            save_checkpoint(gen_Z, opt_gen, filename=config.CHECKPOINT_GEN_Z)
-            save_checkpoint(disc_H, opt_disc,
+            save_checkpoint(generatorY, opt_gen, filename=config.CHECKPOINT_generatorY)
+            save_checkpoint(generatorX, opt_gen, filename=config.CHECKPOINT_generatorX)
+            save_checkpoint(discriminatorX, opt_disc,
                             filename=config.CHECKPOINT_CRITIC_H)
-            save_checkpoint(disc_Z, opt_disc,
+            save_checkpoint(discriminatorY, opt_disc,
                             filename=config.CHECKPOINT_CRITIC_Z)
 
 
